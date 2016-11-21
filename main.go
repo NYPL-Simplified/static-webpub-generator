@@ -2,24 +2,18 @@ package main
 
 import (
 	"archive/zip"
-	"bufio"
-	"crypto/tls"
 	"encoding/json"
+        "flag"
 	"fmt"
 	"html/template"
+        "io"
 	"io/ioutil"
-	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"rsc.io/letsencrypt"
-
 	"github.com/beevik/etree"
-	"github.com/gorilla/mux"
-	"github.com/urfave/negroni"
 )
 
 // Metadata metadata struct
@@ -65,73 +59,45 @@ type AppInstall struct {
 }
 
 func main() {
-
-	n := negroni.Classic()
-	n.Use(negroni.NewStatic(http.Dir("public")))
-	n.UseHandler(loanHandler(false))
-
-	var m letsencrypt.Manager
-	if err := m.CacheFile("letsencrypt.cache"); err != nil {
-		log.Fatal(err)
-	}
-
-	if len(os.Args) > 1 && os.Args[1] == "dev" {
-		s := &http.Server{
-			Handler:        n,
-			ReadTimeout:    10 * time.Second,
-			WriteTimeout:   10 * time.Second,
-			MaxHeaderBytes: 1 << 20,
-			Addr:           ":8080",
-		}
-
-		//		log.Fatal(s.ListenAndServeTLS("test.cert", "test.key"))
-		log.Fatal(s.ListenAndServe())
-	} else {
-
-		s := &http.Server{
-			Handler:        n,
-			ReadTimeout:    10 * time.Second,
-			WriteTimeout:   10 * time.Second,
-			MaxHeaderBytes: 1 << 20,
-			Addr:           ":443",
-			TLSConfig: &tls.Config{
-				GetCertificate: m.GetCertificate,
-			},
-		}
-
-		log.Fatal(s.ListenAndServeTLS("", ""))
-	}
+     var epubDir = *flag.String("epubDir", "books", "Directory of epub files to parse")
+     if !strings.HasSuffix(epubDir, "/") {
+       epubDir = epubDir + "/"
+     }
+     var outputDir = *flag.String("outputDir", "out", "Directory to put generated files in")
+     if !strings.HasSuffix(outputDir, "/") {
+       outputDir = outputDir + "/"
+     }
+     var domain = *flag.String("domain", "", "Domain where files will be hosted")
+     flag.Parse()
+     var books = getBooks(epubDir)
+     for i := 0; i < len(books); i++ {
+       var book = books[i]
+       processBook(book, epubDir, outputDir, domain)
+     }
 }
 
-func loanHandler(test bool) http.Handler {
-	serv := mux.NewRouter()
-
-	serv.HandleFunc("/index.html", getBooks)
-	serv.HandleFunc("/", getBooks)
-	serv.HandleFunc("/viewer.js", viewer)
-	serv.HandleFunc("/sw.js", sw)
-	serv.HandleFunc("/{filename}/", bookIndex)
-	serv.HandleFunc("/{filename}/manifest.json", getManifest)
-	serv.HandleFunc("/{filename}/webapp.webmanifest", getWebAppManifest)
-	serv.HandleFunc("/{filename}/index.html", bookIndex)
-	serv.HandleFunc("/{filename}/{asset:.*}", getAsset)
-	return serv
+func processBook(book string, epubDir string, outputDir string, domain string) {
+    var bookOutputDir = outputDir + "/" + book
+    _ = os.Mkdir(outputDir, os.ModePerm)
+    _ = os.Mkdir(bookOutputDir, os.ModePerm)
+    getManifest(book, domain, epubDir, outputDir)
+    getWebAppManifest(book, epubDir, outputDir)
+    bookIndex(book, outputDir)
+    getAssets(book, epubDir, outputDir)
 }
 
-func getManifest(w http.ResponseWriter, req *http.Request) {
+func getManifest(filename string, domain string, epubDir string, outputDir string) {
 	var opfFileName string
 	var manifestStruct Manifest
 	var metaStruct Metadata
 
 	metaStruct.Modified = time.Now()
 
-	vars := mux.Vars(req)
-	filename := vars["filename"]
-	filename_path := "books/" + filename
+	filename_path := epubDir + filename
 
 	self := Link{
 		Rel:      "self",
-		Href:     "http://" + req.Host + "/" + filename + "/manifest.json",
+		Href:     domain + "/" + filename + "/manifest.json",
 		TypeLink: "application/json",
 	}
 	manifestStruct.Links = make([]Link, 1)
@@ -209,9 +175,7 @@ func getManifest(w http.ResponseWriter, req *http.Request) {
 
 					manifestStruct.Metadata = metaStruct
 					j, _ := json.Marshal(manifestStruct)
-					w.Header().Set("Content-Type", "application/json")
-					w.Header().Set("Access-Control-Allow-Origin", "*")
-					w.Write(j)
+                                        ioutil.WriteFile(outputDir + filename + "/" + "manifest.json", j, 0644)
 					return
 				}
 			}
@@ -220,114 +184,9 @@ func getManifest(w http.ResponseWriter, req *http.Request) {
 
 }
 
-func getAsset(w http.ResponseWriter, req *http.Request) {
-	var opfFileName string
-	var buff string
-
-	vars := mux.Vars(req)
-	filename := "books/" + vars["filename"]
-	assetname := vars["asset"]
-	jsInject := req.URL.Query().Get("js")
-	cssInject := req.URL.Query().Get("css")
-
-	zipReader, err := zip.OpenReader(filename)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	for _, f := range zipReader.File {
-		if f.Name == "META-INF/container.xml" {
-			rc, errOpen := f.Open()
-			if errOpen != nil {
-				fmt.Println("error openging " + f.Name)
-			}
-			doc := etree.NewDocument()
-			_, err = doc.ReadFrom(rc)
-			if err == nil {
-				root := doc.SelectElement("container")
-				rootFiles := root.SelectElements("rootfiles")
-				for _, rootFileTag := range rootFiles {
-					rootFile := rootFileTag.SelectElement("rootfile")
-					if rootFile != nil {
-						opfFileName = rootFile.SelectAttrValue("full-path", "")
-					}
-				}
-			} else {
-				fmt.Println(err)
-			}
-			rc.Close()
-		}
-	}
-
-	resourcePath := strings.Split(opfFileName, "/")[0]
-
-	for _, f := range zipReader.File {
-		//fmt.Println(f.Name)
-		if f.Name == resourcePath+"/"+assetname {
-			rc, errOpen := f.Open()
-			if errOpen != nil {
-				fmt.Println("error openging " + f.Name)
-			}
-			defer rc.Close()
-
-			extension := filepath.Ext(f.Name)
-			if extension == ".css" {
-				w.Header().Set("Content-Type", "text/css")
-			}
-			if extension == ".xml" {
-				w.Header().Set("Content-Type", "application/xhtml+xml")
-			}
-			if extension == ".js" {
-				w.Header().Set("Content-Type", "text/javascript")
-			}
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-
-			buffByte, _ := ioutil.ReadAll(rc)
-			buff = string(buffByte)
-			buffReader := strings.NewReader(buff)
-
-			finalBuff := ""
-			if cssInject != "" || jsInject != "" {
-				scanner := bufio.NewScanner(buffReader)
-				for scanner.Scan() {
-					if strings.Contains(scanner.Text(), "</head>") {
-						headBuff := ""
-						if jsInject != "" {
-							headBuff += strings.Replace(scanner.Text(), "</head>", "<script src='/"+jsInject+"'></script></head>", 1)
-						}
-						if cssInject != "" {
-							if headBuff == "" {
-								headBuff += strings.Replace(scanner.Text(), "</head>", "<link rel='stylesheet' type='text/css' href='/"+cssInject+"'></script></head>", 1)
-							} else {
-								headBuff = strings.Replace(headBuff, "</head>", "<link rel='stylesheet' type='text/css' href='/"+cssInject+"'></head>", 1)
-							}
-						}
-						if headBuff == "" {
-							headBuff = scanner.Text()
-						}
-						finalBuff += headBuff + "\n"
-					} else {
-						finalBuff += scanner.Text() + "\n"
-					}
-				}
-			} else {
-				finalBuff = buff
-			}
-
-			finalBuffReader := strings.NewReader(finalBuff)
-			http.ServeContent(w, req, assetname, f.ModTime(), finalBuffReader)
-			return
-		}
-	}
-
-}
-
-func getWebAppManifest(w http.ResponseWriter, req *http.Request) {
+func getWebAppManifest(filename string, epubDir string, outputDir string) {
 	var opfFileName string
 	var webapp AppInstall
-
-	vars := mux.Vars(req)
-	filename := "books/" + vars["filename"]
 
 	webapp.Display = "standalone"
 	webapp.StartURL = "index.html"
@@ -337,7 +196,7 @@ func getWebAppManifest(w http.ResponseWriter, req *http.Request) {
 		MediaType: "image/png",
 	}
 
-	zipReader, err := zip.OpenReader(filename)
+	zipReader, err := zip.OpenReader(epubDir + filename)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -385,9 +244,7 @@ func getWebAppManifest(w http.ResponseWriter, req *http.Request) {
 					webapp.ShortName = titleTag.Text()
 
 					j, _ := json.Marshal(webapp)
-					w.Header().Set("Content-Type", "application/json")
-					w.Header().Set("Access-Control-Allow-Origin", "*")
-					w.Write(j)
+                                        ioutil.WriteFile(outputDir + filename + "/" + "webapp.webmanifest", j, 0644)
 					return
 				}
 			}
@@ -396,49 +253,78 @@ func getWebAppManifest(w http.ResponseWriter, req *http.Request) {
 
 }
 
-func bookIndex(w http.ResponseWriter, req *http.Request) {
+func bookIndex(book string, outputDir string) {
 	var err error
 
-	vars := mux.Vars(req)
-	filename := "books/" + vars["filename"]
+	filename := outputDir + book
 
 	t, err := template.ParseFiles("index.html") // Parse template file.
 	if err != nil {
 		fmt.Println(err)
 	}
-	t.Execute(w, filename) // merge.
+        f, err := os.Create(filename + "/index.html")
+        if err != nil {
+           fmt.Println("create file: ", err)
+        }
+	t.Execute(f, filename)
+        f.Close()
 }
 
-func getBooks(w http.ResponseWriter, req *http.Request) {
+func getBooks(epubDir string) []string {
 	var books []string
 
-	files, _ := ioutil.ReadDir("books")
+	files, _ := ioutil.ReadDir(epubDir)
 	for _, f := range files {
 		fmt.Println(f.Name())
 		books = append(books, f.Name())
 	}
 
-	t, err := template.ParseFiles("book_index.html") // Parse template file.
+        return books
+}
+
+func getAssets(filename string, epubDir string, outputDir string) {
+	filename_path := epubDir + filename
+
+	zipReader, err := zip.OpenReader(filename_path)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
-	t.Execute(w, books)
-}
 
-func viewer(w http.ResponseWriter, req *http.Request) {
+	for _, f := range zipReader.File {
+                rc, errOpen := f.Open()
+		if errOpen != nil {
+			fmt.Println("error openging " + f.Name)
+		}
+                defer rc.Close()
+                fpath := filepath.Join(outputDir + filename, f.Name)
 
-	f, _ := os.OpenFile("public/viewer.js", os.O_RDONLY, 666)
-	buff, _ := ioutil.ReadAll(f)
+                if f.FileInfo().IsDir() {
+                   os.MkdirAll(fpath, os.ModePerm)
+                } else {
+                   var fdir string
+                   if lastIndex := strings.LastIndex(fpath,string(os.PathSeparator)); lastIndex > -1 {
+                       fdir = fpath[:lastIndex]
+                   }
 
-	w.Header().Set("Content-Type", "text/javascript")
-	w.Write(buff)
-}
+                   err = os.MkdirAll(fdir, os.ModePerm)
+                   if err != nil {
+                       fmt.Println("err ", err)
+                       return
+                   }
+                   f, err := os.OpenFile(
+                       fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+                   if err != nil {
+                       fmt.Println("err ", err)
+                       return
+                   }
+                   defer f.Close()
 
-func sw(w http.ResponseWriter, req *http.Request) {
-
-	f, _ := os.OpenFile("public/sw.js", os.O_RDONLY, 666)
-	buff, _ := ioutil.ReadAll(f)
-
-	w.Header().Set("Content-Type", "text/javascript")
-	w.Write(buff)
+                   _, err = io.Copy(f, rc)
+                   if err != nil {
+                       fmt.Println("err ", err)
+                       return
+                   }
+                }
+        }
 }

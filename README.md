@@ -1,18 +1,8 @@
-# Web Publication Streamer
+# Static Web Publication Generator
 
-This project is a proof of concept that takes an EPUB as an input and provides the following resources in HTTP for it:
+This is a script based on https://github.com/banux/webpub-streamer that takes a directory of EPUB files and generates web publication files for use on a static site.
 
-- a [Web Publication Manifest](https://github.com/HadrienGardeur/webpub-manifest) based on the OPF of the original EPUB
-- resources from the EPUB (HTML, CSS, images etc.)
+## Usage Example
 
-It is entirely written in Go using [Negroni](https://github.com/urfave/negroni). The server is automatically binded to HTTPS using an automatic Let's Encrypt certificate.
+go run main.go -epubDir=books -outputDir=out -domain=http://example.com
 
-In addition to streaming an EPUB as a Web Publication, this project also embeds the [Web Publication Viewer](https://github.com/HadrienGardeur/webpub-viewer) in order to read such publications.
-
-##Usage
-
-By default the server will use EPUB files included in the root directory.
-
-##Live Demo
-
-A live demo is available at: https://proto.myopds.com/
