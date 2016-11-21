@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" manifest="manifest.appcache">
 <head>
   <title>Web Publication Viewer</title>
   <meta charset="utf-8">
@@ -20,8 +20,8 @@
   <main>
     <iframe style="border:0; width:100%; overflow: hidden;"></iframe>
   </main>
-  <script src="/polyfill/fetch.js"></script>
-  <script src="/polyfill/urlsearchparams.js"></script>
-  <script src="/viewer.js" async></script>
+  <script src="/public/polyfill/fetch.js"></script>
+  <script src="/public/polyfill/urlsearchparams.js"></script>
+  <script src="/public/viewer.js" async></script>
 </body>
 </html>

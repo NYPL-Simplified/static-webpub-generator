@@ -167,6 +167,11 @@ func getManifest(filename string, domain string, epubDir string, outputDir strin
 
 					bookManifest := root.SelectElement("manifest")
 					itemsManifest := bookManifest.SelectElements("item")
+
+                                        cacheManifestString := "CACHE MANIFEST\n# timestamp "
+                                        cacheManifestString += time.Now().Format("Mon Jan 2 15:04:05 -0700 MST 2006")
+                                        cacheManifestString += "\n\n"
+
 					for _, item := range itemsManifest {
 						linkItem := Link{}
 						linkItem.TypeLink = item.SelectAttrValue("media-type", "")
@@ -176,11 +181,15 @@ func getManifest(filename string, domain string, epubDir string, outputDir strin
 						} else {
 							manifestStruct.Resources = append(manifestStruct.Resources, linkItem)
 						}
+                                                cacheManifestString += linkItem.Href + "\n"
 					}
+
+                                        cacheManifestString += "\nNETWORK:\n*\n"
 
 					manifestStruct.Metadata = metaStruct
 					j, _ := json.Marshal(manifestStruct)
                                         ioutil.WriteFile(outputDir + filename + "/" + "manifest.json", j, 0644)
+                                        ioutil.WriteFile(outputDir + filename + "/" + "manifest.appcache", []byte(cacheManifestString), 0644)
 					return
 				}
 			}
