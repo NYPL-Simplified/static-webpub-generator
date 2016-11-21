@@ -135,6 +135,11 @@ func getManifest(filename string, domain string, epubDir string, outputDir strin
 		}
 	}
 
+        var opfParts = strings.Split(opfFileName, "/")
+        var opfDir = ""
+        if len(opfParts) > 1 {
+          opfDir = opfParts[0]
+        }
 	if opfFileName != "" {
 		for _, f := range zipReader.File {
 			if f.Name == opfFileName {
@@ -165,7 +170,7 @@ func getManifest(filename string, domain string, epubDir string, outputDir strin
 					for _, item := range itemsManifest {
 						linkItem := Link{}
 						linkItem.TypeLink = item.SelectAttrValue("media-type", "")
-						linkItem.Href = item.SelectAttrValue("href", "")
+						linkItem.Href = opfDir + "/" + item.SelectAttrValue("href", "")
 						if linkItem.TypeLink == "application/xhtml+xml" {
 							manifestStruct.Spine = append(manifestStruct.Spine, linkItem)
 						} else {
