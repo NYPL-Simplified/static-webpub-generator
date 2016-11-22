@@ -184,6 +184,9 @@ func getManifest(filename string, domain string, epubDir string, outputDir strin
 						linkItem := Link{}
 						linkItem.TypeLink = item.SelectAttrValue("media-type", "")
 						linkItem.Href = opfDir + "/" + item.SelectAttrValue("href", "")
+                                                if item.SelectAttrValue("properties", "") == "nav" {
+                                                        linkItem.Rel = "contents"
+                                                }
 						if linkItem.TypeLink == "application/xhtml+xml" {
                                                         spineItemMap[item.SelectAttrValue("id", "")] = linkItem
 						} else {
@@ -198,6 +201,12 @@ func getManifest(filename string, domain string, epubDir string, outputDir strin
                                                 var idref = item.SelectAttrValue("idref", "")
                                                 linkItem := spineItemMap[idref]
 					        manifestStruct.Spine = append(manifestStruct.Spine, linkItem)
+                                                delete(spineItemMap, idref)
+                                        }
+
+                                        // Anything that wasn't in the spine is a resource
+                                        for _, item := range spineItemMap {
+                                                manifestStruct.Resources = append(manifestStruct.Resources, item)
                                         }
 
 					manifestStruct.Metadata = metaStruct
