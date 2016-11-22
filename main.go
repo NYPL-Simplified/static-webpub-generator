@@ -168,6 +168,8 @@ func getManifest(filename string, domain string, epubDir string, outputDir strin
 
 					bookManifest := root.SelectElement("manifest")
 					itemsManifest := bookManifest.SelectElements("item")
+                                        spineManifest := root.SelectElement("spine")
+                                        spineItemsManifest := spineManifest.SelectElements("itemref")
 
                                         cacheManifestString := "CACHE MANIFEST\n# timestamp "
                                         cacheManifestString += time.Now().Format("Mon Jan 2 15:04:05 -0700 MST 2006")
@@ -176,12 +178,14 @@ func getManifest(filename string, domain string, epubDir string, outputDir strin
                                         cacheManifestString += "../viewer.js\n"
                                         cacheManifestString += "index.html\n"
 
+                                        var spineItemMap = make(map[string]Link)
+
 					for _, item := range itemsManifest {
 						linkItem := Link{}
 						linkItem.TypeLink = item.SelectAttrValue("media-type", "")
 						linkItem.Href = opfDir + "/" + item.SelectAttrValue("href", "")
 						if linkItem.TypeLink == "application/xhtml+xml" {
-							manifestStruct.Spine = append(manifestStruct.Spine, linkItem)
+                                                        spineItemMap[item.SelectAttrValue("id", "")] = linkItem
 						} else {
 							manifestStruct.Resources = append(manifestStruct.Resources, linkItem)
 						}
@@ -189,6 +193,12 @@ func getManifest(filename string, domain string, epubDir string, outputDir strin
 					}
 
                                         cacheManifestString += "\nNETWORK:\n*\n"
+
+                                        for _, item := range spineItemsManifest {
+                                                var idref = item.SelectAttrValue("idref", "")
+                                                linkItem := spineItemMap[idref]
+					        manifestStruct.Spine = append(manifestStruct.Spine, linkItem)
+                                        }
 
 					manifestStruct.Metadata = metaStruct
 					j, _ := json.Marshal(manifestStruct)
