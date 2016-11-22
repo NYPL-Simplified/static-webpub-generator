@@ -3,30 +3,16 @@
 (function() {
 
   if (navigator.serviceWorker) {
-    //HINT: Make sure that the path to your Service Worker is correct
-    navigator.serviceWorker.register('/sw.js');
+    navigator.serviceWorker.register('../sw.js');
 
     navigator.serviceWorker.ready.then(function() {
       console.log('SW ready');
     });
   };
 
-  var DEFAULT_MANIFEST = new URL("manifest.json", location.href).href;
-  var current_url_params = new URLSearchParams(location.href);
+  var manifest_url = new URL("manifest.json", location.href).href;
 
-  if (current_url_params.has("href")) {
-    console.log("Found manifest in params")
-    var manifest_url = current_url_params.get("href");
-  } else {
-    var manifest_url = DEFAULT_MANIFEST;
-  };
-
-  if (current_url_params.has("document")) {
-    console.log("Found reference to a document in params")
-    var document_url = current_url_params.get("document");
-  } else {
-    var document_url = undefined;
-  };
+  var document_url = undefined;
 
   var iframe = document.querySelector("iframe");
   var next = document.querySelector("a[rel=next]");
@@ -44,10 +30,10 @@
     updateNavigation(manifest_url).catch(function() {});
     try {
       try {
-        history.pushState(null, null, "./?manifest=true&href="+manifest_url+"&document="+iframe.contentDocument.location.href);
+          document_url = iframe.contentDocument.location.href;
       }
       catch(err) {
-        history.pushState(null, null, "./?manifest=true&href="+manifest_url+"&document="+iframe.src);
+          document_url = iframe.src;
       }
     }
     catch(err) {

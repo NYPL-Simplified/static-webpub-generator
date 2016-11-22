@@ -74,6 +74,7 @@ func main() {
        var book = books[i]
        processBook(book, epubDir, outputDir, domain)
      }
+     copySharedFiles(outputDir)
 }
 
 func processBook(book string, epubDir string, outputDir string, domain string) {
@@ -171,6 +172,9 @@ func getManifest(filename string, domain string, epubDir string, outputDir strin
                                         cacheManifestString := "CACHE MANIFEST\n# timestamp "
                                         cacheManifestString += time.Now().Format("Mon Jan 2 15:04:05 -0700 MST 2006")
                                         cacheManifestString += "\n\n"
+                                        cacheManifestString += "../polyfill/fetch.js\n"
+                                        cacheManifestString += "../viewer.js\n"
+                                        cacheManifestString += "index.html\n"
 
 					for _, item := range itemsManifest {
 						linkItem := Link{}
@@ -341,4 +345,28 @@ func getAssets(filename string, epubDir string, outputDir string) {
                    }
                 }
         }
+}
+
+func copySharedFiles(outDir string) {
+     files := [3]string{"viewer.js", "sw.js", "polyfill/fetch.js"}
+    _ = os.Mkdir(outDir + "polyfill", os.ModePerm)
+     
+     for i := 0; i < len(files); i++ {
+       var input = "public/" + files[i]
+       var output = outDir + files[i]
+       inputFile, err := os.Open(input)
+       if err != nil {
+         fmt.Println("err ", err)
+       }
+       defer inputFile.Close()
+       outputFile, err := os.Create(output)
+       if err != nil {
+         fmt.Println("err ", err)
+       }
+       defer outputFile.Close()
+       _, err = io.Copy(outputFile, inputFile)
+       if err != nil {
+         fmt.Println("err ", err)
+       }
+     }
 }
