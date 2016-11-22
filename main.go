@@ -23,6 +23,7 @@ type Metadata struct {
 	Identifier string    `json:"identifier"`
 	Language   string    `json:"language"`
 	Modified   time.Time `json:"modified"`
+        Cover      string    `json:"string"`
 }
 
 // Link link struct
@@ -81,16 +82,18 @@ func main() {
 }
 
 func processBook(book string, epubDir string, outputDir string, domain string) {
-    var bookOutputDir = outputDir + "/" + book
-    _ = os.Mkdir(outputDir, os.ModePerm)
-    _ = os.Mkdir(bookOutputDir, os.ModePerm)
-    getManifest(book, domain, epubDir, outputDir)
-    getWebAppManifest(book, epubDir, outputDir)
-    bookIndex(book, outputDir)
-    getAssets(book, epubDir, outputDir)
+    if strings.HasSuffix(book, ".epub") {
+            var bookOutputDir = outputDir + "/" + book
+            _ = os.Mkdir(outputDir, os.ModePerm)
+            _ = os.Mkdir(bookOutputDir, os.ModePerm)
+            manifestStruct := getManifest(book, domain, epubDir, outputDir)
+            getWebAppManifest(book, epubDir, outputDir)
+            bookIndex(book, outputDir, *manifestStruct)
+            getAssets(book, epubDir, outputDir)
+    }
 }
 
-func getManifest(filename string, domain string, epubDir string, outputDir string) {
+func getManifest(filename string, domain string, epubDir string, outputDir string) *Manifest {
 	var opfFileName string
 	var manifestStruct Manifest
 	var metaStruct Metadata
@@ -112,7 +115,7 @@ func getManifest(filename string, domain string, epubDir string, outputDir strin
 	zipReader, err := zip.OpenReader(filename_path)
 	if err != nil {
 		fmt.Println(err)
-		return
+		return nil
 	}
 
 	for _, f := range zipReader.File {
@@ -190,6 +193,10 @@ func getManifest(filename string, domain string, epubDir string, outputDir strin
                                                 if item.SelectAttrValue("properties", "") == "nav" {
                                                         linkItem.Rel = "contents"
                                                 }
+                                                if item.SelectAttrValue("properties", "") == "cover-image" {
+                                                        linkItem.Rel = "cover"
+                                                        metaStruct.Cover = linkItem.Href
+                                                }
 						if linkItem.TypeLink == "application/xhtml+xml" {
                                                         spineItemMap[item.SelectAttrValue("id", "")] = linkItem
 						} else {
@@ -216,12 +223,12 @@ func getManifest(filename string, domain string, epubDir string, outputDir strin
 					j, _ := json.Marshal(manifestStruct)
                                         ioutil.WriteFile(outputDir + filename + "/" + "manifest.json", j, 0644)
                                         ioutil.WriteFile(outputDir + filename + "/" + "manifest.appcache", []byte(cacheManifestString), 0644)
-					return
+					return &manifestStruct
 				}
 			}
 		}
 	}
-
+        return nil
 }
 
 func getWebAppManifest(filename string, epubDir string, outputDir string) {
@@ -293,7 +300,7 @@ func getWebAppManifest(filename string, epubDir string, outputDir string) {
 
 }
 
-func bookIndex(book string, outputDir string) {
+func bookIndex(book string, outputDir string, manifest Manifest) {
 	var err error
 
 	filename := outputDir + book
@@ -306,7 +313,7 @@ func bookIndex(book string, outputDir string) {
         if err != nil {
            fmt.Println("create file: ", err)
         }
-	t.Execute(f, filename)
+	t.Execute(f, manifest)
         f.Close()
 }
 
