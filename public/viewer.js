@@ -101,13 +101,6 @@
 
   function cacheManifest(url) {
     var manifestJSON = getManifest(url);
-    manifestJSON.then(function(manifest) {
-      // Also store the manifest in local storage so it can be accessed offline
-      // in a browser that doesn't support service workers.
-      if (window.localStorage) {
-          window.localStorage[url + "-manifest"] = JSON.stringify(manifest);
-      }
-    });
     return Promise.all([cacheSpine(manifestJSON, url), cacheResources(manifestJSON, url)])
   };
 
@@ -125,6 +118,12 @@
 
   function initializeNavigation(url, document_url) {
     return getManifest(url).then(function(json) {
+      // Store the manifest in local storage so it can be accessed offline
+      // in a browser that doesn't support service workers.
+      if (window.localStorage) {
+          window.localStorage[url + "-manifest"] = JSON.stringify(json);
+      }
+
       var title = json.metadata.title;
       console.log("Title of the publication: "+title);
       document.querySelector("title").textContent = title;
