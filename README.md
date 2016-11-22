@@ -6,3 +6,6 @@ This is a script based on https://github.com/banux/webpub-streamer that takes a 
 
 go run main.go -epubDir=books -outputDir=out -domain=http://example.com
 
+## Uploading output to s3
+
+Install the aws cli and run `aws configure` to set up credentials. Then run `aws s3 cp <outputDir> s3://<bucket>/<folder>/ --recursive --acl public-read` 
