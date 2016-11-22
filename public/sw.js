@@ -1,8 +1,7 @@
 var CACHE_NAME = 'webpub-viewer';
 //HINT: Make sure that this correctly points to the static resources used for the viewer
 var urlsToCache = [
-  'index.html',
-  'sandbox.html',
+  'polyfill/fetch.js',
   'viewer.js'
 ];
 

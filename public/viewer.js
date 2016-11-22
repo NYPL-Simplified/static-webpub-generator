@@ -71,7 +71,7 @@
         if (!response) {
           console.log("No cache key found");
           console.log('Caching manifest at: '+url);
-          return cacheManifest(url);
+          return Promise.all([cacheManifest(url), cacheUrl(["index.html"], url)]);
         } else {
           console.log("Found cache key");
         };
