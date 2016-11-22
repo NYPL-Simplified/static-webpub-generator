@@ -13,6 +13,9 @@
   var manifest_url = new URL("manifest.json", location.href).href;
 
   var document_url = undefined;
+  if (window.localStorage) {
+      document_url = window.localStorage.document_url;
+  }
 
   var iframe = document.querySelector("iframe");
   var next = document.querySelector("a[rel=next]");
@@ -34,6 +37,9 @@
       }
       catch(err) {
           document_url = iframe.src;
+      }
+      if (window.localStorage) {
+          window.localStorage.document_url = document_url;
       }
     }
     catch(err) {
@@ -59,6 +65,11 @@
 
   function getManifest(url) {
     return fetch(url).catch(function() {
+      if (window.localStorage && window.localStorage.manifest) {
+          return new Promise(function(resolve, reject) {
+            resolve(window.localStorage.manifest);
+          });
+      }
       return caches.match(url);
     }).then(function(response) {
       return response.json();
@@ -90,6 +101,13 @@
 
   function cacheManifest(url) {
     var manifestJSON = getManifest(url);
+    manifestJSON.then(function(manifest) {
+      // Also store the manifest in local storage so it can be accessed offline
+      // in a browser that doesn't support service workers.
+      if (window.localStorage) {
+          window.localStorage.manifest = manifest;
+      }
+    });
     return Promise.all([cacheSpine(manifestJSON, url), cacheResources(manifestJSON, url)])
   };
 
