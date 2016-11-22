@@ -59,16 +59,19 @@ type AppInstall struct {
 }
 
 func main() {
-     var epubDir = *flag.String("epubDir", "books", "Directory of epub files to parse")
+     var epubDirFlag = flag.String("epubDir", "books", "Directory of epub files to parse")
+     var outputDirFlag = flag.String("outputDir", "out", "Directory to put generated files in")
+     var domainFlag = flag.String("domain", "", "Domain where files will be hosted")
+     flag.Parse()
+     var epubDir = *epubDirFlag
+     var outputDir = *outputDirFlag
+     var domain = *domainFlag
      if !strings.HasSuffix(epubDir, "/") {
        epubDir = epubDir + "/"
      }
-     var outputDir = *flag.String("outputDir", "out", "Directory to put generated files in")
      if !strings.HasSuffix(outputDir, "/") {
        outputDir = outputDir + "/"
      }
-     var domain = *flag.String("domain", "", "Domain where files will be hosted")
-     flag.Parse()
      var books = getBooks(epubDir)
      for i := 0; i < len(books); i++ {
        var book = books[i]
