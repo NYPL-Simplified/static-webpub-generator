@@ -190,10 +190,13 @@
         console.log("Could not get iframe location, fallback to src");
       }
 
-      var current_index = spine.findIndex(function(element) {
+      var current_index = 0;
+      spine.forEach(function(element, index) {
         var element_url = new URL(element.href, url);
-        return element_url.href == current_location
-      })
+        if (element_url.href == current_location) {
+            current_index = index;
+        }
+      });
 
       if (current_index >= 0) {
 
