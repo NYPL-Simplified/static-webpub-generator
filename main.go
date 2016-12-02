@@ -176,6 +176,8 @@ func getManifest(filename string, domain string, epubDir string, outputDir strin
 					itemsManifest := bookManifest.SelectElements("item")
                                         spineManifest := root.SelectElement("spine")
                                         spineItemsManifest := spineManifest.SelectElements("itemref")
+                                        guideManifest := root.SelectElement("guide")
+                                        guideItemsManifest := guideManifest.SelectElements("reference")
 
                                         cacheManifestString := "CACHE MANIFEST\n# timestamp "
                                         cacheManifestString += time.Now().Format("Mon Jan 2 15:04:05 -0700 MST 2006")
@@ -206,6 +208,20 @@ func getManifest(filename string, domain string, epubDir string, outputDir strin
 					}
 
                                         cacheManifestString += "\nNETWORK:\n*\n"
+
+                                        // Find the toc if it's in the guide.
+                                        for _, item := range guideItemsManifest {
+                                                var href = item.SelectAttrValue("href", "")
+                                                var typeAttr = item.SelectAttrValue("type", "")
+                                                if typeAttr == "toc" {
+                                                        for spineItemId, spineItem := range spineItemMap {
+                                                                if spineItem.Href == opfDir + "/" + href {
+                                                                        spineItem.Rel = "contents"
+                                                                        spineItemMap[spineItemId] = spineItem
+                                                                }
+                                                        }
+                                                }
+                                        }
 
                                         for _, item := range spineItemsManifest {
                                                 var idref = item.SelectAttrValue("idref", "")
